@@ -605,7 +605,7 @@ class Request
    public function getResponse()
    {
        if(null === $this->response) {
-           $this->execute();
+           $this->send();
        }
        return $this->response;
    }
