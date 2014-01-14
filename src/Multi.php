@@ -11,7 +11,8 @@ use Curl\Request;
 class MultuExecutor
 {
     private $_mh;
-    protected  $concurrentRequestsLimit = 5;
+    private $_isRunning = false;
+    protected $concurrentRequestsLimit = 5;
     protected $requestTimeout = 10;
 
     protected $requests = array();
@@ -21,6 +22,19 @@ class MultuExecutor
     protected $lastExecutionTime;
     protected $lastExecutionSentRequests = 0;
     
+    
+    /**
+     * Resets the request list and common options if needed
+     * @param boolean $resetCommonOptions [optional] default false
+     */
+    public function reset($resetCommonOptions = false)
+    {
+        $this->_mh = null;
+        $this->requests = array();
+        $this->requestMap = array();
+        $resetCommonOptions && $this->commonRequestOptions = array();
+        return $this;
+    }
     
     /**
      * Add request
@@ -95,6 +109,23 @@ class MultuExecutor
      */
     public function execute()
     {
+        $requestCount = $this->requestCount();
+        if(0 == $requestCount) {
+            $this->lastExecutionTime = $this->lastExecutionSentRequests = 0;
+            return 0;            
+        } else if(1 == $requestCount) {
+            /* @var $request Request */
+            $request = array_shift($this->requests);
+            $request->send();
+            $requestCount = $this->requestCount();
+            if($requestCount > 1 && !$this->isRunning()) {
+                $this->execute();
+            } else if(1 == $requestCount) {
+                trigger_error('', E_USER_WARNING, 'Only one request available. The multichannel execution requires more than one request');
+            }
+            return 1;
+        }
+        
         $this->_mh = curl_multi_init();
         
         $i = 0;
@@ -115,6 +146,7 @@ class MultuExecutor
         $timeStart = microtime(1);
         // number of sent requests
         $sentCount = 0;
+        $this->_isRunning = true;
         
         $stillRunning = null;
         do {
@@ -135,12 +167,13 @@ class MultuExecutor
                 $request->setResponse($result);
                 $sentCount++;
                 
+                // remove completed requests
                 unset($this->requests[$this->requestMap[$stringKey]], $this->requestMap[$stringKey]);
                 if(count($this->requests)) {
                     if(false !== ($current = each($this->requests))) {
                         /* @var $r Request */
                         list($k, $r)  = $current;
-                        $ch = $r->getResource();
+                        $ch = $r->prepare()->getResource();
                         curl_multi_add_handle($this->_mh, $ch);
                         
                         $stringKey = (string) $ch;
@@ -159,11 +192,30 @@ class MultuExecutor
         
         curl_multi_close($this->_mh);
         
-        $timeEnd = microtime(1) - $timeStart;
-        $this->lastExecutionTime = $timeEnd;
+        $execTime = microtime(1) - $timeStart;
+        $this->lastExecutionTime = $execTime;
         $this->lastExecutionSentRequests = $sentCount;
+        $this->_isRunning = false;
         
         return $sentCount;
     }
     
+    
+    /**
+     * Returns boolean true if executor is still running
+     * @return boolean
+     */
+    public function isRunning()
+    {
+        return $this->_isRunning;
+    }
+    
+    /**
+     * Returns the number of unsent requests
+     * @return integer
+     */
+    public function requestCount()
+    {
+        return count($this->requests);
+    }
 }

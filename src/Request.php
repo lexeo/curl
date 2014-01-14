@@ -49,7 +49,7 @@ class Request
     
     protected $observers = array();
     
-    protected $customData = null;
+    protected $customData = array();
     
     private $_ch = null;
     
@@ -192,7 +192,6 @@ class Request
        
         $options = array(
             CURLOPT_URL => $this->url,
-            CURLOPT_COOKIEFILE => $this->cookieFile,
             CURLOPT_REFERER => $this->refererUrl,
             CURLOPT_USERAGENT => $this->userAgent,
             CURLOPT_RETURNTRANSFER => true,
@@ -205,6 +204,11 @@ class Request
             if($this->redirectLimit > 0) {
                  $options[CURLOPT_MAXREDIRS] = $this->redirectLimit;
             }
+        }
+        
+        // set path to cookie file
+        if(null != $this->cookieFile) {
+            $options[CURLOPT_COOKIEFILE] = $this->cookieFile;
         }
         
         // allow to write cookies in file
@@ -534,12 +538,22 @@ class Request
    
    
    /**
-    * @param mixed $data
+    * Sets up the custom user data to be able to get it later
+    * @param array $data
     */
-   public function setCustomData($data)
+   public function setCustomData(array $data)
    {
        $this->customData = $data;
        return $this;
+   }
+   
+   /**
+    * Returns defined custom data
+    * @return array
+    */
+   public function getCustomData()
+   {
+       return $this->customData;
    }
    
    /**
@@ -583,20 +597,23 @@ class Request
     */
    public function setResponse($result, $autoClose = true)
    {
-       $this->response = new $this->responseClass($this->getResource(), $result);
-       
-       // handle events
-       $this->trigger(self::EVENT_COMPLETE);
-       if($this->response->hasError()) {
+        if(false === $result) {
+            $result = '';     
+        }
+        $this->response = new $this->responseClass($this->getResource(), (string) $result);
+        
+        // handle events
+        if($this->response->hasError()) {
            $this->trigger(self::EVENT_ERROR);
-       } else {
+        } else {
            $this->trigger(self::EVENT_SUCCESS);
-       }
-
-       if($autoClose) {
+        }
+        $this->trigger(self::EVENT_COMPLETE);
+        
+        if($autoClose) {
            $this->close();
-       }
-       return $this;
+        }
+        return $this;
    }
    
    /**
