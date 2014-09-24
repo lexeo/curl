@@ -3,11 +3,10 @@ namespace Curl;
 
 require_once 'Response.php';
 
-
 /**
  * Request class
- * @author lexeo
- * @version 0.1b
+ * @author Alexey "Lexeo" Grishatkin
+ * @version 0.2b
  */
 class Request
 {
@@ -17,13 +16,13 @@ class Request
     const METHOD_PUT = 'PUT';
     const METHOD_DELETE = 'DELETE';
     const METHOD_HEAD = 'HEAD';
-    
+
     // request event types
     const EVENT_BEFORE_SEND = 'beforesend';
     const EVENT_SUCCESS = 'success';
     const EVENT_ERROR = 'error';
     const EVENT_COMPLETE = 'complete';
-    
+
     protected $url;
     protected $method;
     protected $postParams = array();
@@ -32,33 +31,33 @@ class Request
     protected $cookies = array();
     protected $refererUrl;
     protected $userAgent;
-    
+
     protected $proxy;
     protected $proxyPort;
     protected $proxyType;
     protected $proxyUserPwd;
-    
+
     protected $timeout;
     protected $connectionTimeout;
-    
+
     protected $allowRedirect = true;
     protected $redirectLimit = 0;
-    
+
     protected $cookieFile = null;
     protected $cookieFileReadOnly = true;
-    
+
     protected $observers = array();
-    
+
     protected $customData = array();
-    
+
     private $_ch = null;
-    
+
     /**
      * @var Curl\IResponse
      */
     protected $response = null;
     protected $responseClass = 'Curl\Response';
-    
+
    /**
     * Constructor
     * @param string $url
@@ -73,10 +72,10 @@ class Request
        null !== $method && $this->setMethod($method);
        null !== $postParams && $this->setPostParams($postParams);
        null !== $callback && $this->setCallback($callback);
-       
+
        $this->init();
    }
-   
+
    /**
     * Destructor
     */
@@ -84,7 +83,7 @@ class Request
    {
         $this->close();
    }
-   
+
    /**
     * Initializes the request
     */
@@ -97,7 +96,7 @@ class Request
        }
        return $this;
    }
-   
+
    /**
     * Makes new Request object
     * @param string $url
@@ -110,10 +109,10 @@ class Request
    {
        return new self($url, $method, $postParams, $callback);
    }
-   
+
    /**
     * Returns a list of available event types [key => description]
-    * @return array 
+    * @return array
     */
    public static function getAvailableEventTypes()
    {
@@ -124,7 +123,7 @@ class Request
            self::EVENT_COMPLETE => 'Complete',
        );
    }
-   
+
    /**
     * Attaches an event handler
     * @param string $eventType
@@ -136,10 +135,10 @@ class Request
            throw new \InvalidArgumentException('Invalid event handler given. Expected a valid callback');
        }
        $this->observers[strtolower((string) $eventType)][] = $handler;
-      
+
        return $this;
    }
-   
+
    /**
     * Detaches an event handler
     * @param string $eventType
@@ -158,7 +157,7 @@ class Request
        }
        return $this;
    }
-   
+
    /**
     * Fires event
     * @param string $eventType
@@ -172,24 +171,24 @@ class Request
        if(null !== $customParams) {
            $params = array_merge($params, $customParams);
        }
-       
+
        foreach ($observers as $callback) {
            call_user_func_array($callback, $params);
        }
        return $this;
    }
-   
-   
-   
+
+
+
    /**
     * Prepares request (sets up the curl options)
     */
-   public function prepare() 
+   public function prepare()
    {
        if(empty($this->url)) {
            throw new \BadMethodCallException('Check the Request URL. It should not be empty.');
        }
-       
+
         $options = array(
             CURLOPT_URL => $this->url,
             CURLOPT_REFERER => $this->refererUrl,
@@ -197,7 +196,7 @@ class Request
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_SSL_VERIFYPEER => false,
         ) + $this->options;
-        
+
         // allow redirects
         if(ini_get('safe_mode') == 'Off' || !ini_get('safe_mode')) {
             $options[CURLOPT_FOLLOWLOCATION] = $this->allowRedirect;
@@ -205,17 +204,17 @@ class Request
                  $options[CURLOPT_MAXREDIRS] = $this->redirectLimit;
             }
         }
-        
+
         // set path to cookie file
         if(null != $this->cookieFile) {
             $options[CURLOPT_COOKIEFILE] = $this->cookieFile;
         }
-        
+
         // allow to write cookies in file
         if(!$this->cookieFileReadOnly) {
             $options[CURLOPT_COOKIEJAR] = $this->cookieFile;
         }
-        
+
         // set custom cookies
         if(!empty($this->cookies)) {
             $cookieStr = '';
@@ -225,7 +224,7 @@ class Request
             $cookieStr = trim($cookieStr);
             $options[CURLOPT_COOKIE] = $cookieStr;
         }
-        
+
         if(!empty($this->proxy)) {
             $options[CURLOPT_PROXY] = $this->proxy;
             $options[CURLOPT_PROXYPORT] = $this->proxyPort;
@@ -235,7 +234,7 @@ class Request
                 $options[CURLOPT_PROXYUSERPWD] = $this->proxyUserPwd;
             }
         }
-        
+
         // remove request method options to avoid problems
         unset($options[CURLOPT_NOBODY], $options[CURLOPT_HTTPGET], $options[CURLOPT_CUSTOMREQUEST], $options[CURLOPT_POST]);
         // set request data
@@ -243,18 +242,21 @@ class Request
             if(!in_array($this->method, array(self::METHOD_POST, self::METHOD_PUT))) {
                 $this->method = self::METHOD_POST;
             }
-            $options[CURLOPT_POSTFIELDS] = $this->postParams;
+            $options[CURLOPT_POSTFIELDS] = $this->preparePostData($this->postParams);
         } else if(self::METHOD_POST == $this->method) {
             // FIXME check and remove this section if needed
             // fix POST request with empty data issue (Content-Length: -1)
             foreach ($this->headers as $k => $h) {
                 if(false !== stripos($h, 'Content-Length')) {
                     unset($this->headers[$k]);
+                } else if (false !== stripos($h, 'Content-type')) {
+                    unset($this->headers[$k]);
                 }
             }
+            $this->headers[] = 'Content-Type: multipart/form-data';
             $this->headers[] = 'Content-Length: 0';
-        }        
-        
+        }
+
         // set curl request method
         switch ($this->method) {
             case self::METHOD_HEAD:
@@ -262,25 +264,46 @@ class Request
                break;
             case self::METHOD_GET:
                $options[CURLOPT_HTTPGET] = true;
-               break;               
+               break;
             case self::METHOD_POST:
-               $options[CURLOPT_POST] = true; 
+               $options[CURLOPT_POST] = true;
                break;
             default:
                $options[CURLOPT_CUSTOMREQUEST] = $this->method;
                break;
         }
-        
+
         // append request headers
         $options[CURLOPT_HTTPHEADER] = $this->headers;
         // sort the array with options to avoid some problems with POST requests
         ksort($options);
         // ser curl options
         curl_setopt_array($this->getResource(), $options);
-       
-       return $this;    
+
+       return $this;
    }
-   
+
+   /**
+    * Prepares data to be able to send multidimensional array
+    * @param array|object $data
+    * @param string $prefix [optional]
+    * @return array
+    */
+   protected function preparePostData($data, $prefix = null)
+   {
+        $result = array();
+        is_object($data) && $data = get_object_vars($data);
+        foreach ($data as $k => $v) {
+            $key = $prefix ? "{$prefix}[{$k}]" : $k;
+            if (is_scalar($v)) {
+                $result[$key] = $v;
+            } else {
+                $result = array_merge($result, $this->preparePostData($v, $key));
+            }
+        }
+        return $result;
+   }
+
    /**
     * Closes connection
     * @return \Curl\Request
@@ -293,7 +316,7 @@ class Request
        $this->_ch = null;
        return $this;
    }
-   
+
    /**
     * @param string $url
     */
@@ -302,7 +325,7 @@ class Request
         $this->url = $url;
         return $this;
    }
-   
+
    /**
     * @param string $method
     */
@@ -311,7 +334,7 @@ class Request
         $this->method = strtoupper($method);
         return $this;
    }
-   
+
    /**
     * Defines POST params
     * @param array $params
@@ -321,7 +344,7 @@ class Request
         $this->postParams = $params;
         return $this;
    }
-   
+
    /**
     * Appends POST params to request, overwrites duplicate keys
     * @param array $params
@@ -331,7 +354,7 @@ class Request
         $this->postParams = $params + $this->postParams;
         return $this;
    }
-   
+
    /**
     * Attaches files in POST data
     * @param array $files [key => file] or [key => [file1, file2, file3]]
@@ -362,7 +385,7 @@ class Request
         $this->addPostParams($attachments);
         return $this;
    }
-   
+
    /**
     * Defines request headers
     * @param array $headers
@@ -372,7 +395,7 @@ class Request
        $this->headers = $headers;
        return $this;
    }
-   
+
    /**
     * Appends headers to request, overwrites duplicate keys
     * @param array $headers
@@ -382,7 +405,7 @@ class Request
        $this->headers = $headers + $this->headers;
        return $this;
    }
-   
+
    /**
     * Defines cURL options array
     * @param array $options
@@ -392,7 +415,7 @@ class Request
        $this->options = $options;
        return $this;
    }
-   
+
    /**
     * Appends certain cURL options, overwrite duplicate keys
     * @param array $options
@@ -402,7 +425,7 @@ class Request
        $this->options = $options + $this->options;
        return $this;
    }
-   
+
    /**
     * @param string $pathToFile
     * @param boolean $write [optional]
@@ -418,7 +441,7 @@ class Request
        $this->cookieFileReadOnly = !$write;
        return $this;
    }
-   
+
    /**
     * Define request cookies
     * @param array $cookies
@@ -428,7 +451,7 @@ class Request
        $this->cookies = $cookies;
        return $this;
    }
-   
+
    /**
     * Appends certain request cookies, overwrite duplicate keys
     * @param array $cookies
@@ -438,7 +461,7 @@ class Request
        $this->cookies = $cookies + $this->cookies;
        return $this;
    }
-   
+
    /**
     * Attaches the callback
     * @param object $callback
@@ -449,7 +472,7 @@ class Request
        $this->on(self::EVENT_COMPLETE, $callback);
        return $this;
    }
-   
+
    /**
     * Sets up the request timeout in sec
     * @param integer $value
@@ -459,7 +482,7 @@ class Request
        $this->timeout = (int) $value;
        return $this;
    }
-   
+
    /**
     * Sets up the request connection timeout in sec
     * @param integer $value
@@ -469,7 +492,7 @@ class Request
        $this->connectionTimeout = (int) $value;
        return $this;
    }
-   
+
    /**
     * If true, allow automatically redirect id needed
     * but only certain number of times
@@ -485,7 +508,7 @@ class Request
        }
        return $this;
    }
-   
+
    /**
     * Sets up request referer url
     * @param string $url
@@ -495,7 +518,7 @@ class Request
        $this->refererUrl = $url;
        return $this;
    }
-   
+
    /**
     * Sets up request HTTP_USER_AGENT
     * @param string $ua default $_SERVER['HTTP_USER_AGENT']
@@ -509,7 +532,7 @@ class Request
        }
        return $this;
    }
-   
+
    /**
     * Sets up proxy params
     * @param string $proxy
@@ -523,7 +546,7 @@ class Request
        $this->proxyType = $type;
        return $this;
    }
-   
+
    /**
     * Sets up proxy owner credentials
     * @param string $user
@@ -534,9 +557,9 @@ class Request
        $this->proxyUserPwd = $user .':'. $password;
        return $this;
    }
-   
-   
-   
+
+
+
    /**
     * Sets up the custom user data to be able to get it later
     * @param array $data
@@ -546,7 +569,7 @@ class Request
        $this->customData = $data;
        return $this;
    }
-   
+
    /**
     * Returns defined custom data
     * @return array
@@ -555,7 +578,7 @@ class Request
    {
        return $this->customData;
    }
-   
+
    /**
     * Returns the curl resource
     */
@@ -563,7 +586,7 @@ class Request
    {
        return $this->_ch;
    }
-   
+
    /**
     * Sends request
     * @return Curl\IResponse
@@ -576,7 +599,7 @@ class Request
        $this->setResponse($result, true);
        return $this->getResponse();
    }
-   
+
    /**
     * Defines response class
     * @param string $className
@@ -589,7 +612,7 @@ class Request
        }
        throw new \InvalidArgumentException('Invalid class given. Response class must implement Curl\IResponse interface');
    }
-   
+
    /**
     * Sets up the response
     * @param string $result
@@ -598,10 +621,10 @@ class Request
    public function setResponse($result, $autoClose = true)
    {
         if(false === $result) {
-            $result = '';     
+            $result = '';
         }
         $this->response = new $this->responseClass($this->getResource(), (string) $result);
-        
+
         // handle events
         if($this->response->hasError()) {
            $this->trigger(self::EVENT_ERROR);
@@ -609,13 +632,13 @@ class Request
            $this->trigger(self::EVENT_SUCCESS);
         }
         $this->trigger(self::EVENT_COMPLETE);
-        
+
         if($autoClose) {
            $this->close();
         }
         return $this;
    }
-   
+
    /**
     * @return Curl\IResponse
     */
@@ -626,5 +649,5 @@ class Request
        }
        return $this->response;
    }
-    
+
 }

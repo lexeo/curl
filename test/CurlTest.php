@@ -8,33 +8,33 @@ class CurlTest extends PHPUnit_Framework_TestCase
     /**
      * @var string URL to serverside.php
      */
-    protected $testCallbackUrl = 'http://lexeodev/test/curl/test/serverside.php';
-    
+    protected $testCallbackUrl = 'http://localhost/curl/test/serverside.php';
+
     /**
      * test Init
      */
     public function testInit()
     {
-        $request = Curl\Request::newRequest('http://www.google.com.ua');
+        $request = Curl\Request::newRequest('http://www.google.com');
         $this->assertTrue(is_resource($request->getResource()));
     }
-    
+
     /**
      * Test close on complete
      */
     public function testCloseOnComplete()
     {
-        $request = Curl\Request::newRequest('http://www.google.com.ua');
+        $request = Curl\Request::newRequest('http://www.google.com');
         $request->send();
         $this->assertFalse(is_readable($request->getResource()));
     }
-    
+
     /**
      * Test attach event handler
      */
     public function testAttachEventHandler()
     {
-        $request = Curl\Request::newRequest('http://www.google.com.ua');
+        $request = Curl\Request::newRequest('http://www.google.com');
         $eventTypes = array('beforeSend', 'success', 'complete');
         $handledEvents = 0;
         $callback = function() use (&$handledEvents) {
@@ -46,20 +46,20 @@ class CurlTest extends PHPUnit_Framework_TestCase
         $request->send();
         $this->assertEquals(count($eventTypes), $handledEvents);
     }
-    
+
     /**
      * Test detach event handler
      */
     public function testDetachEventHandler()
     {
-        $request = Curl\Request::newRequest('http://www.google.com.ua');
+        $request = Curl\Request::newRequest('http://www.google.com');
         $callback = function() {
             $this->fail('An error occurred. This callback must not be executed');
         };
         $request->on('beforeSend', $callback)->off('beforeSend', $callback);
         $request->send();
     }
-    
+
     /**
      * @return array
      */
@@ -71,10 +71,10 @@ class CurlTest extends PHPUnit_Framework_TestCase
             array(Curl\Request::METHOD_PUT),
             array(Curl\Request::METHOD_DELETE),
             array(Curl\Request::METHOD_HEAD),
-            
+
         );
     }
-    
+
     /**
      * Test available request methods
      * @dataProvider providerRequestMethod
@@ -82,7 +82,7 @@ class CurlTest extends PHPUnit_Framework_TestCase
      */
     public function testRequestMethod($method)
     {
-        $request = \Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->testCallbackUrl);
         $response = $request->setMethod($method)->send();
         if(Curl\Request::METHOD_HEAD == $method) {
             $this->assertEquals(200, $response->getInfo(true)->http_code);
@@ -92,17 +92,17 @@ class CurlTest extends PHPUnit_Framework_TestCase
                 $this->fail('Invalid response');
             } else {
                 $this->assertEquals($method, $data['method']);
-            }            
+            }
         }
 
     }
-    
+
     /**
      * Test POST request with params and files
      */
     public function testPostRequestParamsAndFiles()
     {
-        $request = \Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->testCallbackUrl);
         $params = array(
             'param1' => 1,
             'param2' => 2,
@@ -114,7 +114,7 @@ class CurlTest extends PHPUnit_Framework_TestCase
         $request->setMethod('POST')
             ->addPostParams($params)
             ->attachFiles($files);
-            
+
         $data = json_decode($request->send(), true);
         if(!is_array($data)) {
             $this->fail('Invalid response');
@@ -124,13 +124,33 @@ class CurlTest extends PHPUnit_Framework_TestCase
             $this->fail('One or more files missed');
         }
     }
-    
+
+    /**
+     * Test POST request with multidimensional array of data
+     */
+    public function testPostRequestMultidimensionalArray()
+    {
+        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $params = array(
+            'param1' => 1,
+            'param2' => array(2, 'param3' => 3),
+            'param4' => 4,
+        );
+        $request->setMethod('POST')
+            ->addPostParams($params);
+
+        $data = json_decode($request->send(), true);
+        $this->assertInternalType('array', $data, 'Invalid response');
+        $this->assertArrayHasKey('params', $data, 'Invalid response');
+        $this->assertEquals($params, $data['params'], 'One or more params missed');
+    }
+
     /**
      * Test PUT request with params and files
      */
     public function testPutRequestParamsAndFiles()
     {
-        $request = \Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->testCallbackUrl);
         $params = array(
             'param1' => 1,
             'param2' => 2,
@@ -142,7 +162,7 @@ class CurlTest extends PHPUnit_Framework_TestCase
         $request->setMethod('PUT')
             ->addPostParams($params)
             ->attachFiles($files);
-            
+
             $data = json_decode($request->send(), true);
         if(!is_array($data)) {
             $this->fail('Invalid response');
@@ -152,13 +172,13 @@ class CurlTest extends PHPUnit_Framework_TestCase
             $this->fail('One or more files missed');
         }
     }
-    
+
     /**
      * Test curl multi
      */
     public function testMultiCurl()
     {
-        $mh = new \Curl\MultuExecutor();
+        $mh = new Curl\MultuExecutor();
         $callback = function(Curl\Response $response, Curl\Request $request) {
             // do something
         };
@@ -176,21 +196,21 @@ class CurlTest extends PHPUnit_Framework_TestCase
             ->addRequest(new Curl\Request('http://yahoo.com'))
             ->addRequest(new Curl\Request('http://yandex.ru'))
             ->addRequest(new Curl\Request('http://mail.ru'));
-            
+
         $mh->execute();
     }
-    
+
     /**
      * Test redirect limit
      */
     public function testRedirectLimit()
     {
         $limit = 2;
-        $request = \Curl\Request::newRequest($this->testCallbackUrl .'?redirect=1');
+        $request = Curl\Request::newRequest($this->testCallbackUrl .'?redirect=1');
         $response = $request->setAllowRedirect(true, $limit)->send();
         $this->assertLessThanOrEqual($limit, $response->getInfo(true)->redirect_count);
     }
-    
+
     /**
      * Test cookie file
      */
@@ -201,10 +221,10 @@ class CurlTest extends PHPUnit_Framework_TestCase
         if(file_exists($filename)) {
             unlink($filename);
         }
-        $request = \Curl\Request::newRequest('http://google.com');
+        $request = Curl\Request::newRequest('http://google.com');
         $request->setCookieFile($filename, true)->send();
         $this->assertFileExists($filename);
     }
-    
-    
+
+
 }
