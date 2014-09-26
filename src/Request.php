@@ -1,12 +1,10 @@
 <?php
 namespace Curl;
 
-require_once 'Response.php';
-
 /**
  * Request class
  * @author Alexey "Lexeo" Grishatkin
- * @version 0.2b
+ * @version 0.3b
  */
 class Request
 {
@@ -53,10 +51,11 @@ class Request
     private $_ch = null;
 
     /**
-     * @var Curl\IResponse
+     * @var Curl\Response\ResponseInterface
      */
     protected $response = null;
-    protected $responseClass = 'Curl\Response';
+    protected $responseClass = 'Curl\Response\PlainResponse';
+    protected $responseOptions = array();
 
    /**
     * Constructor
@@ -306,7 +305,7 @@ class Request
 
    /**
     * Closes connection
-    * @return \Curl\Request
+    * @return Curl\Request
     */
    public function close()
    {
@@ -589,28 +588,40 @@ class Request
 
    /**
     * Sends request
-    * @return Curl\IResponse
+    * @return Curl\Response\ResponseInterface
     */
    public function send()
    {
-       $this->prepare();
-       $this->trigger(self::EVENT_BEFORE_SEND);
-       $result = curl_exec($this->getResource());
-       $this->setResponse($result, true);
-       return $this->getResponse();
+        $this->prepare();
+        $this->trigger(self::EVENT_BEFORE_SEND);
+        $result = curl_exec($this->getResource());
+        $this->setResponse($result, true);
+        return $this->getResponse();
    }
 
    /**
     * Defines response class
     * @param string $className
     */
-   public function setResponseClass($className)
+    public function setResponseClass($className)
+    {
+        if(class_exists($className) && ($r = new \ReflectionClass($className))
+            && $r->implementsInterface('Curl\Response\ResponseInterface')
+        ) {
+            $this->responseClass = $className;
+            return $this;
+        }
+        throw new \InvalidArgumentException('Invalid class given. Response class must implement Curl\Response\ResponseInterface interface');
+    }
+
+   /**
+    * Sets up the response options which will be defined after construct
+    * @param array $options
+    */
+   public function setResponseOptions(array $options)
    {
-       if(class_exists($className, false) && is_subclass_of('IResponse', $className)) {
-           $this->responseClass = $className;
-           return $this;
-       }
-       throw new \InvalidArgumentException('Invalid class given. Response class must implement Curl\IResponse interface');
+        $this->responseOptions = $options;
+        return $this;
    }
 
    /**
@@ -623,7 +634,16 @@ class Request
         if(false === $result) {
             $result = '';
         }
-        $this->response = new $this->responseClass($this->getResource(), (string) $result);
+        $this->response = new $this->responseClass();
+        foreach ($this->responseOptions as $k => $v) {
+            if (isset($this->response->{$k})) {
+                $this->response->{$k} = $v;
+            } else {
+                $setter = 'set'. ucfirst($k);
+                method_exists($this->response, $setter) && $this->response->{$setter}($v);
+            }
+        }
+        $this->response->init($this->getResource(), (string) $result);
 
         // handle events
         if($this->response->hasError()) {
@@ -640,7 +660,7 @@ class Request
    }
 
    /**
-    * @return Curl\IResponse
+    * @return Curl\Response\ResponseInterface
     */
    public function getResponse()
    {

@@ -1,3 +1,6 @@
 .project
 .buildpath
 .settings
+test/testcookies.txt
+vendor/
+composer.lock

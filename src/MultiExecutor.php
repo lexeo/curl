@@ -3,12 +3,11 @@ namespace Curl;
 use Curl\Request;
 
 /**
- *
  * Curl Multi Executor
  * @author Alexey "Lexeo" Grishatkin
- * @version 0.2b
+ * @version 0.3b
  */
-class MultuExecutor
+class MultiExecutor
 {
     private $_mh;
     private $_isRunning = false;
@@ -38,9 +37,9 @@ class MultuExecutor
 
     /**
      * Add request
-     * @param \Curl\Request $request
+     * @param Curl\Request $request
      */
-    public function addRequest(\Curl\Request $request)
+    public function addRequest(Request $request)
     {
         $reflection = new \ReflectionClass($request);
         if(!empty($this->commonRequestOptions)) {

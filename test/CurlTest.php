@@ -1,9 +1,6 @@
 <?php
 
-require_once '../src/Request.php';
-require_once '../src/Multi.php';
-
-class CurlTest extends PHPUnit_Framework_TestCase
+class CurlTest extends \PHPUnit_Framework_TestCase
 {
     /**
      * @var string URL to serverside.php
@@ -71,7 +68,6 @@ class CurlTest extends PHPUnit_Framework_TestCase
             array(Curl\Request::METHOD_PUT),
             array(Curl\Request::METHOD_DELETE),
             array(Curl\Request::METHOD_HEAD),
-
         );
     }
 
@@ -178,8 +174,8 @@ class CurlTest extends PHPUnit_Framework_TestCase
      */
     public function testMultiCurl()
     {
-        $mh = new Curl\MultuExecutor();
-        $callback = function(Curl\Response $response, Curl\Request $request) {
+        $mh = new Curl\MultiExecutor();
+        $callback = function(Curl\Response\ResponseInterface $response, Curl\Request $request) {
             // do something
         };
         $beforeSendCallback = function($response, Curl\Request $request) {
@@ -224,6 +220,57 @@ class CurlTest extends PHPUnit_Framework_TestCase
         $request = Curl\Request::newRequest('http://google.com');
         $request->setCookieFile($filename, true)->send();
         $this->assertFileExists($filename);
+    }
+
+    /**
+     * test set response options
+     */
+    public function testSetResponseOptions()
+    {
+        /* @var $response Curl\Response\JSONResponse */
+        $autoDecode = false;
+        $response = Curl\Request::newRequest('http://google.com')
+            ->setResponseOptions(array('autoDecode' => $autoDecode))
+            ->setResponseClass('Curl\Response\JSONResponse')
+            ->send();
+        $this->assertEquals($autoDecode, $response->autoDecode);
+        $this->assertNull($response->content);
+        $this->assertFalse($response->hasError());
+        $response->decode();
+        $this->assertTrue($response->hasError());
+    }
+
+
+    /**
+     * test JSONResponse
+     */
+    public function testJSONResponse()
+    {
+        /* @var $response Curl\Response\JSONResponse */
+        $response = Curl\Request::newRequest($this->testCallbackUrl)
+            ->setResponseClass('Curl\Response\JSONResponse')
+            ->send();
+        $this->assertInstanceOf('Curl\Response\JSONResponse', $response);
+        $this->assertNotEmpty($response->contentRaw);
+        $this->assertFalse($response->hasError());
+        $this->assertInternalType('object', $response->decode());
+        $this->assertObjectHasAttribute('params', $response->content);
+        $this->assertInternalType('array', $response->toArray());
+    }
+
+    /**
+     * test XMLResponse
+     */
+    public function testXMLResponse()
+    {
+        /* @var $response Curl\Response\XMLResponse */
+        $response = Curl\Request::newRequest($this->testCallbackUrl .'?xml=1')
+            ->setResponseClass('Curl\Response\XMLResponse')
+            ->send();
+        $this->assertInstanceOf('Curl\Response\XMLResponse', $response);
+        $this->assertNotEmpty($response->contentRaw);
+        $this->assertFalse($response->hasError());
+        $this->assertInstanceOf('SimpleXMLElement', $response->content);
     }
 
 

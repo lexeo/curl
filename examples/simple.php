@@ -1,7 +1,5 @@
 <?php
 
-require_once '../src/Request.php';
-
 $request = new Curl\Request();
 $request->setUrl('http://google.com');
 // or

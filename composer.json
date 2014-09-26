@@ -2,18 +2,18 @@
     "name": "lexeo/curl",
     "description": "Simple cURL wrapper",
     "keywords": ["curl", "php-curl", "http", "request"],
-    "version": "0.2",
+    "version": "0.3",
     "authors": [{
         "name": "Alexey Grishatkin",
         "email": "lexeodev@gmail.com"
     }],
     "require": {
-        "php": ">=5.2",
+        "php": ">=5.3.9",
         "ext-curl": "*"
     },
     "autoload": {
-        "psr-0": {
-            "Curl": "src/"
+        "psr-4": {
+            "Curl\\": "src/"
         }
     }
 }

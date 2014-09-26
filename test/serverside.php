@@ -4,7 +4,7 @@
 if(isset($_GET['redirect'])) {
     $i = isset($_GET['i']) ? (int) $_GET['i'] : 0;
     $l = isset($_GET['l']) ? (int) $_GET['l'] : 5;
-    
+
     if($i < $l) {
         $uri = $_SERVER['SCRIPT_NAME'];
         header("Location: {$uri}?redirect=1&i={$i}&l={$l}");
@@ -35,10 +35,30 @@ switch ($requestMethod) {
         $inputData = file_get_contents('php://input');
         $result = array_merge($result, parseInputData($inputData));
         break;
-} 
+}
 
-header('Content-Type: application/json');
-echo json_encode($result);
+if (!isset($_GET['xml'])) {
+    header('Content-Type: application/json');
+    echo json_encode($result);
+} else {
+    $xml = new SimpleXMLElement('<root/>');
+    $xml = array2xml($result, $xml);
+
+    header('Content-type: text/xml');
+    echo $xml->asXML();
+}
+
+/**
+ * @param array $data
+ * @param SimpleXMLElement $xml
+ * @return SimpleXMLElement
+ */
+function array2xml(array $data, SimpleXMLElement $xml) {
+    foreach ($data as $k => $v) {
+        is_array($v) ? array2xml($v, $xml->addChild($k)) : $xml->addChild($k, $v);
+    }
+    return $xml;
+}
 
 /**
  * Parses php input data
@@ -58,6 +78,6 @@ function parseInputData($data) {
                 $result['params'][$v[1]] = $v[3];
             }
         }
-    }  
+    }
     return $result;
 };
