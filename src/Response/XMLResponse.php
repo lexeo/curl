@@ -52,9 +52,52 @@ class XMLResponse extends PlainResponse
     }
 
     /**
+     * Convets response XML to array
+     * @param boolean $ignoreAttributes [optional, default=false]
+     * @return array
+     */
+    public function toArray($ignoreAttributes = false)
+    {
+        null === $this->content && $this->parse(LIBXML_NOCDATA);
+        return $this->xml2array($this->content, $ignoreAttributes);
+    }
+
+    /**
+     * Convets SimpleXMLElement object to array
+     * @param \SimpleXMLElement $element
+     * @param boolean $ignoreAttributes [optional, default=false]
+     * @return array
+     */
+    public static function xml2array(\SimpleXMLElement $element, $ignoreAttributes = false)
+    {
+        $result = array();
+        if (!$ignoreAttributes) {
+            foreach ($element->attributes() as $attr => $value) {
+                $result['@attributes'][$attr] = (string) $value;
+            }
+        }
+        if ($element->count()) {
+            foreach ($element->children() as $name => $child) {
+                /* @var $child SimpleXMLElement */
+                $childArray = self::xml2array($child);
+                if (count($childArray) == 1 && array_key_exists($name, $childArray)) {
+                    $result[$name] = array_shift($childArray);
+                } else {
+                    $result[$name] = $childArray;
+                }
+            }
+        } else if (isset($result['@attributes'])) {
+            $result['@value'] = (string) $element;
+        } else {
+            return array($element->getName() => (string) $element);
+        }
+        return $result;
+    }
+
+    /**
      * Parses XML response and returns SimpleXMLElement object
-     * @param integer $options
-     * @param string $ns
+     * @param integer $options [optional]
+     * @param string $ns [optional]
      * @return SimpleXMLElement
      */
     public function parse($options = null, $ns = null)

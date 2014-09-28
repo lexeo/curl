@@ -600,6 +600,32 @@ class Request
    }
 
    /**
+    * Sets up the response type. Generates a notice if invalid type given
+    * @param string $type
+    */
+   public function setResponseType($type)
+   {
+        switch (strtolower(trim((string) $type))) {
+            case 'json':
+                $this->setResponseClass('Curl\Response\JSONResponse');
+                break;
+            case 'xml':
+                $this->setResponseClass('Curl\Response\XMLResponse');
+                break;
+            case 'default':
+            case 'text':
+            case 'plain':
+                $this->setResponseClass('Curl\Response\PlainResponse');
+                break;
+            default:
+                trigger_error('Unsupported response type "'. $type .'". Default type set.', E_USER_NOTICE);
+                $this->setResponseClass('Curl\Response\PlainResponse');
+                break;
+        }
+        return $this;
+   }
+
+   /**
     * Defines response class
     * @param string $className
     */
@@ -612,6 +638,15 @@ class Request
             return $this;
         }
         throw new \InvalidArgumentException('Invalid class given. Response class must implement Curl\Response\ResponseInterface interface');
+    }
+
+    /**
+     * Returns defined response class
+     * @return string
+     */
+    public function getResponseClass()
+    {
+        return $this->responseClass;
     }
 
    /**

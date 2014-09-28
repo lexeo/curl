@@ -223,6 +223,23 @@ class CurlTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * test defining of response class by type
+     */
+    public function testSetResponseType()
+    {
+        $request = Curl\Request::newRequest('http://google.com');
+
+        $request->setResponseType('json');
+        $this->assertEquals('Curl\Response\JSONResponse', trim($request->getResponseClass(),'\\'));
+
+        $request->setResponseType('xml');
+        $this->assertEquals('Curl\Response\XMLResponse', trim($request->getResponseClass(),'\\'));
+
+        $request->setResponseType('plain');
+        $this->assertEquals('Curl\Response\PlainResponse', trim($request->getResponseClass(),'\\'));
+    }
+
+    /**
      * test set response options
      */
     public function testSetResponseOptions()
@@ -273,5 +290,26 @@ class CurlTest extends \PHPUnit_Framework_TestCase
         $this->assertInstanceOf('SimpleXMLElement', $response->content);
     }
 
+    /**
+     * test XML to array converting
+     */
+    public function testXMLResponseToArray()
+    {
+        $xml = '<?xml version="1.0" ?>
+            <document id="100500">
+                <title>Forty What?</title>
+                <from email="email@example.com">Joe</from>
+                <to>Jane</to>
+                <body>I know that\'s the answer -- but what\'s the question?</body>
+            </document>';
+        $response = new Curl\Response\XMLResponse(null, $xml);
+        $result = $response->toArray(true);
+        $this->assertInternalType('array', $result);
+        $this->assertArrayHasKey('title', $result);
+        $this->assertArrayNotHasKey('@attributes', $result);
+
+        $result = $response->toArray(false);
+        $this->assertArrayHasKey('@attributes', $result);
+    }
 
 }
