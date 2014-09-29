@@ -297,7 +297,7 @@ class Request
         }
         foreach ($data as $k => $v) {
             $key = $prefix ? "{$prefix}[{$k}]" : $k;
-            if (is_scalar($v)) {
+            if (is_scalar($v) || null === $v) {
                 $result[$key] = $v;
             } else {
                 $result = array_merge($result, $this->preparePostData($v, $key));

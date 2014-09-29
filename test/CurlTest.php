@@ -131,6 +131,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
             'param1' => 1,
             'param2' => array(2, 'param3' => 3),
             'param4' => 4,
+            'paramNULL' => null,
         );
         $request->setMethod('POST')
             ->addPostParams($params);
