@@ -2,7 +2,7 @@
     "name": "lexeo/curl",
     "description": "Simple PHP5.3 cURL wrapper",
     "keywords": ["curl", "php-curl", "http", "request"],
-    "version": "0.3",
+    "version": "0.3.1",
     "authors": [{
         "name": "Alexey Grishatkin",
         "email": "lexeodev@gmail.com"

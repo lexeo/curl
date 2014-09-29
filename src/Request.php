@@ -4,7 +4,7 @@ namespace Curl;
 /**
  * Request class
  * @author Alexey "Lexeo" Grishatkin
- * @version 0.3b
+ * @version 0.3.1
  */
 class Request
 {

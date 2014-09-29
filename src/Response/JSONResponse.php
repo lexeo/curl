@@ -3,7 +3,7 @@ namespace Curl\Response;
 
 /**
  * @author Alexey "Lexeo" Grishatkin
- * @version 0.3
+ * @version 0.3.1
  * @since 0.3
  */
 class JSONResponse extends PlainResponse

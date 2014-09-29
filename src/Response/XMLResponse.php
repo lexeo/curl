@@ -3,7 +3,7 @@ namespace Curl\Response;
 
 /**
  * @author Alexey "Lexeo" Grishatkin
- * @version 0.3
+ * @version 0.3.1
  * @since 0.3
  */
 class XMLResponse extends PlainResponse
@@ -54,12 +54,15 @@ class XMLResponse extends PlainResponse
     /**
      * Convets response XML to array
      * @param boolean $ignoreAttributes [optional, default=false]
-     * @return array
+     * @return array|null
      */
     public function toArray($ignoreAttributes = false)
     {
         null === $this->content && $this->parse(LIBXML_NOCDATA);
-        return $this->xml2array($this->content, $ignoreAttributes);
+        if (!$this->hasError()) {
+            return $this->xml2array($this->content, $ignoreAttributes);
+        }
+        return null;
     }
 
     /**
@@ -70,18 +73,24 @@ class XMLResponse extends PlainResponse
      */
     public static function xml2array(\SimpleXMLElement $element, $ignoreAttributes = false)
     {
-        $result = array();
         if (!$ignoreAttributes) {
             foreach ($element->attributes() as $attr => $value) {
                 $result['@attributes'][$attr] = (string) $value;
             }
         }
+        $childrenCount = $element->count();
         if ($element->count()) {
-            foreach ($element->children() as $name => $child) {
-                /* @var $child SimpleXMLElement */
-                $childArray = self::xml2array($child);
+            foreach ($element as $name => $child) {
+                if ('' !== ($txt = trim((string) $child))) {
+                    $result[$name] = $txt;
+                    continue;
+                }
+                /* @var $child \SimpleXMLElement */
+                $childArray = self::xml2array($child, $ignoreAttributes);
                 if (count($childArray) == 1 && array_key_exists($name, $childArray)) {
                     $result[$name] = array_shift($childArray);
+                } else if ($childrenCount > count((array) $element) || $childrenCount == 1 && count($childArray) > 1) {
+                    $result[] = $childArray;
                 } else {
                     $result[$name] = $childArray;
                 }

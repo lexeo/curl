@@ -2,7 +2,7 @@
 
 /**
  * @author Alexey "Lexeo" Grishatkin
- * @version 0.3
+ * @version 0.3.1
  */
 class CurlTest extends \PHPUnit_Framework_TestCase
 {
@@ -340,15 +340,26 @@ class CurlTest extends \PHPUnit_Framework_TestCase
                 <from email="email@example.com">Joe</from>
                 <to>Jane</to>
                 <body>I know that\'s the answer -- but what\'s the question?</body>
+                <items>
+                    <item><name>foo</name><value>bar</value></item>
+                    <item><name>bar</name><value>baz</value></item>
+                    <item><name>baz</name><value>foo</value></item>
+                    <item id="1"/>
+                    <item id="2"/>
+                </items>
             </document>';
         $response = new Curl\Response\XMLResponse(null, $xml);
         $result = $response->toArray(true);
         $this->assertInternalType('array', $result);
         $this->assertArrayHasKey('title', $result);
         $this->assertArrayNotHasKey('@attributes', $result);
+        $this->assertArrayHasKey('items', $result);
+        $this->assertCount(4, $result['items']);
 
         $result = $response->toArray(false);
         $this->assertArrayHasKey('@attributes', $result);
+        $this->assertArrayHasKey('items', $result);
+        $this->assertCount(5, $result['items']);
     }
 
 }

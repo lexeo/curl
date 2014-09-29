@@ -5,7 +5,7 @@ use Curl\Request;
 /**
  * Curl Multi Executor
  * @author Alexey "Lexeo" Grishatkin
- * @version 0.3b
+ * @version 0.3.1
  */
 class MultiExecutor
 {
