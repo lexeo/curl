@@ -1,5 +1,9 @@
 <?php
 
+/**
+ * @author Alexey "Lexeo" Grishatkin
+ * @version 0.3
+ */
 class CurlTest extends \PHPUnit_Framework_TestCase
 {
     /**
@@ -277,6 +281,23 @@ class CurlTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * test JSONResponse with non-json response text
+     */
+    public function testInvalidJSONResponse()
+    {
+        /* @var $response Curl\Response\JSONResponse */
+        $response = Curl\Request::newRequest('http://google.com')
+            ->setResponseType('json')
+            ->send();
+        $this->assertInstanceOf('Curl\Response\JSONResponse', $response);
+        $this->assertNotEmpty($response->contentRaw);
+        $this->assertTrue($response->hasError());
+        $error = $response->getError();
+        $this->assertNotEquals(0, $error['code']);
+        $this->assertNotEmpty($error['message']);
+    }
+
+    /**
      * test XMLResponse
      */
     public function testXMLResponse()
@@ -289,6 +310,23 @@ class CurlTest extends \PHPUnit_Framework_TestCase
         $this->assertNotEmpty($response->contentRaw);
         $this->assertFalse($response->hasError());
         $this->assertInstanceOf('SimpleXMLElement', $response->content);
+    }
+
+    /**
+     * test XMLResponse with non-xml response text
+     */
+    public function testInvalidXMLResponse()
+    {
+        /* @var $response Curl\Response\JSONResponse */
+        $response = Curl\Request::newRequest('http://google.com')
+            ->setResponseType('xml')
+            ->send();
+        $this->assertInstanceOf('Curl\Response\XMLResponse', $response);
+        $this->assertNotEmpty($response->contentRaw);
+        $this->assertTrue($response->hasError());
+        $error = $response->getError();
+        $this->assertNotEquals(0, $error['code']);
+        $this->assertNotEmpty($error['message']);
     }
 
     /**

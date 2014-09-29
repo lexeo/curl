@@ -1,6 +1,6 @@
 {
     "name": "lexeo/curl",
-    "description": "Simple cURL wrapper",
+    "description": "Simple PHP5.3 cURL wrapper",
     "keywords": ["curl", "php-curl", "http", "request"],
     "version": "0.3",
     "authors": [{
@@ -8,7 +8,7 @@
         "email": "lexeodev@gmail.com"
     }],
     "require": {
-        "php": ">=5.3.9",
+        "php": ">=5.3.3",
         "ext-curl": "*"
     },
     "autoload": {
