@@ -291,7 +291,10 @@ class Request
    protected function preparePostData($data, $prefix = null)
    {
         $result = array();
-        is_object($data) && $data = get_object_vars($data);
+        is_object($data) && null != ($props = get_object_vars($data)) && $data = $props;
+        if (!is_array($data)) {
+            throw new \InvalidArgumentException('Invalid argument $data given. Expected array or object.');
+        }
         foreach ($data as $k => $v) {
             $key = $prefix ? "{$prefix}[{$k}]" : $k;
             if (is_scalar($v)) {
