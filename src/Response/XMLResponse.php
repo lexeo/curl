@@ -73,13 +73,14 @@ class XMLResponse extends PlainResponse
      */
     public static function xml2array(\SimpleXMLElement $element, $ignoreAttributes = false)
     {
+        $result = array();
         if (!$ignoreAttributes) {
             foreach ($element->attributes() as $attr => $value) {
                 $result['@attributes'][$attr] = (string) $value;
             }
         }
         $childrenCount = $element->count();
-        if ($element->count()) {
+        if ($childrenCount) {
             foreach ($element as $name => $child) {
                 if ('' !== ($txt = trim((string) $child))) {
                     $result[$name] = $txt;

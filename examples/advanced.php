@@ -66,3 +66,30 @@ class CustomResponse extends Curl\Response\PlainResponse
 $request->setResponseClass('CustomResponse');
 var_dump($request->send()->hasError());
 
+// set response type
+/* @var $response Curl\Response\XMLResponse */
+$response = $request->setResponseType('xml')->send();
+var_dump($response, $response->toArray());
+
+
+// use curl_multi
+$executor = new Curl\MultiExecutor();
+// define a number of concurrent requests
+$executor->setConcurrentRequestsLimit(2);
+
+// set common options to all requests
+$executor->setCommonRequestOptions(array(
+    // simple curl option
+    CURLOPT_AUTOREFERER => 1,
+    // define options with setter method without prefix "set" e.g. Curl\Request::setHeaders()
+    'headers' => array(/* some headers */),
+    // define event callbacks
+    Curl\Request::EVENT_BEFORE_SEND => function () { /* do something */ },
+
+));
+// NOTE: it's important to define common options BEFORE call Curl\MultiExecutor::addRequest()
+for($i = 0; $i < 10; $i++) {
+    $executor->addRequest(Curl\Request::newRequest('https://google.com'));
+}
+// run executor
+$executor->execute();

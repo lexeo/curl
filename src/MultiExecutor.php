@@ -56,9 +56,7 @@ class MultiExecutor
                             $request->on(strtolower($k), $p);
                         }
                     } catch (\Exception $e) {
-                        //FIXME remove direct output
-                        //TODO add debug mode
-//                        echo $e->getMessage() ."\r\n";
+                        // TODO add debug mode
                         trigger_error('Invalid param in common options. Error: '. $e->getMessage(), E_USER_NOTICE);
                     }
                 } else if(is_numeric($k)) {

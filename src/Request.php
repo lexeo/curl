@@ -329,12 +329,28 @@ class Request
    }
 
    /**
+    * @return string
+    */
+   public function getUrl()
+   {
+       return $this->url;
+   }
+
+   /**
     * @param string $method
     */
    public function setMethod($method)
    {
         $this->method = strtoupper($method);
         return $this;
+   }
+
+   /**
+    * @return string
+    */
+   public function getMethod()
+   {
+       return $this->method;
    }
 
    /**
@@ -355,6 +371,14 @@ class Request
    {
         $this->postParams = $params + $this->postParams;
         return $this;
+   }
+
+   /**
+    * @return array
+    */
+   public function getPostParams()
+   {
+       return $this->postParams;
    }
 
    /**
@@ -409,6 +433,14 @@ class Request
    }
 
    /**
+    * @return array
+    */
+   public function getHeaders()
+   {
+       return $this->headers;
+   }
+
+   /**
     * Defines cURL options array
     * @param array $options
     */
@@ -426,6 +458,14 @@ class Request
    {
        $this->options = $options + $this->options;
        return $this;
+   }
+
+   /**
+    * @return array
+    */
+   public function getOptions()
+   {
+       return $this->options;
    }
 
    /**
@@ -462,6 +502,14 @@ class Request
    {
        $this->cookies = $cookies + $this->cookies;
        return $this;
+   }
+
+   /**
+    * @return array
+    */
+   public function getCookies()
+   {
+       return $this->cookies;
    }
 
    /**
