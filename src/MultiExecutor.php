@@ -37,7 +37,7 @@ class MultiExecutor
 
     /**
      * Add request
-     * @param Curl\Request $request
+     * @param \Curl\Request $request
      */
     public function addRequest(Request $request)
     {

@@ -23,10 +23,10 @@ $inputData = '';
 
 switch ($requestMethod) {
     case 'GET':
-        $result['params'] = $_GET;
+        $result['params'] = decodeData($_GET);
         break;
     case 'POST':
-        $result['params'] = $_POST;
+        $result['params'] = decodeData($_POST);
         $result['files'] = $_FILES;
         break;
     case 'PUT':
@@ -67,7 +67,7 @@ function array2xml(array $data, SimpleXMLElement $xml) {
  */
 function parseInputData($data) {
     $result = array();
-    $pattern = '#Content-Disposition: form-data; name="([^\"]+)"(?:; filename="([^\"]+)")?[\w\W]*?\s{3,}([\w\W]+?)\s-+#mi';
+    $pattern = '#Content-Disposition: form-data; name="([^\"]+)"(?:; filename="([^\"]+)")?[\w\W]*?\s{3,}([\w\W]+?)\s*-+#mi';
     if(preg_match_all($pattern, $data, $m, PREG_SET_ORDER)) {
         foreach ($m as $v) {
             if(!empty($v[2])) {
@@ -75,9 +75,30 @@ function parseInputData($data) {
                 $result['files'][$v[1]] = $v[2];
             } else if(isset($v[3])) {
                 // append param => value
-                $result['params'][$v[1]] = $v[3];
+                $result['params'][$v[1]] = decodeData($v[3]);
             }
         }
     }
     return $result;
-};
+}
+
+/**
+ * @param mixed $data
+ * @return mixed
+ */
+function decodeData($data) {
+    if (is_numeric($data)) {
+        return (ctype_digit($data) ? (int) $data : (float) $data);
+    } else if (in_array($data, array('true', 'false'), true)) {
+        return filter_var($data, FILTER_VALIDATE_BOOLEAN);
+    } else if ('null' === $data) {
+        return null;
+    } else if (is_array($data)) {
+        $result = array();
+        foreach ($data as $k => $v) {
+            $result[$k] = decodeData($v);
+        }
+        return $result;
+    }
+    return $data;
+}

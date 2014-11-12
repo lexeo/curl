@@ -26,7 +26,7 @@ class XMLResponse extends PlainResponse
 
    /**
     * (non-PHPdoc)
-    * @see Curl\ResponseInterface::init($resource, $result)
+    * @see \Curl\ResponseInterface::init($resource, $result)
     */
     public function init($resource, $result)
     {

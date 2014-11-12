@@ -136,6 +136,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
             'param2' => array(2, 'param3' => 3),
             'param4' => 4,
             'paramNULL' => null,
+            'paramBool' => array(true, false),
         );
         $request->setMethod('POST')
             ->addPostParams($params);
@@ -143,7 +144,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
         $data = json_decode($request->send(), true);
         $this->assertInternalType('array', $data, 'Invalid response');
         $this->assertArrayHasKey('params', $data, 'Invalid response');
-        $this->assertEquals($params, $data['params'], 'One or more params missed');
+        $this->assertEquals($params, $data['params'], 'One or more params missed or not equal');
     }
 
     /**
@@ -162,9 +163,10 @@ class CurlTest extends \PHPUnit_Framework_TestCase
         );
         $request->setMethod('PUT')
             ->addPostParams($params)
-            ->attachFiles($files);
+            ->attachFiles($files)
+            ->addOptions(array(CURLINFO_HEADER_OUT => 1));
 
-            $data = json_decode($request->send(), true);
+        $data = json_decode($request->send(), true);
         if(!is_array($data)) {
             $this->fail('Invalid response');
         } else if(!isset($data['params']) || array_diff_key($data['params'], $params)) {
@@ -172,6 +174,89 @@ class CurlTest extends \PHPUnit_Framework_TestCase
         } else if(!isset($data['files']) || array_diff_key($data['files'], $files)) {
             $this->fail('One or more files missed');
         }
+    }
+
+    /**
+     * Test POST request with files
+     */
+    public function testForceMultipartContent()
+    {
+        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $params = array(
+            'param1' => 1,
+            'param2' => 2,
+        );
+        $files = array(
+            'file' => __FILE__,
+            'file2' => __FILE__,
+        );
+        $invalidHeaders = array(
+            'Content-Type: application/json',
+        	'Content-Length: 100500',
+        );
+        $request->setMethod('POST')
+            ->addPostParams($params)
+            ->attachFiles($files)
+            ->addHeaders($invalidHeaders)
+            ->addOptions(array(
+            	CURLINFO_HEADER_OUT => 1,
+            ));
+
+        $data = json_decode($request->send(), true);
+        $requestHeaders = $request->getResponse()->getInfo(true)->request_header;
+        foreach ($invalidHeaders as $h) {
+            $this->assertNotContains($h, $requestHeaders);
+        }
+        $this->assertContains('Content-Type: multipart/form-data', $requestHeaders);
+
+        if(!is_array($data)) {
+            $this->fail('Invalid response');
+        } else if(!isset($data['params']) || array_diff_key($data['params'], $params)) {
+            $this->fail('One or more params missed');
+        } else if(!isset($data['files']) || array_diff_key($data['files'], $files)) {
+            $this->fail('One or more files missed');
+        }
+    }
+
+    /**
+     * test that default Content-Type header is urlencoded
+     */
+    public function testDefaultContentTypeIsUrlEncoded()
+    {
+        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $params = array(
+            'param1' => 1,
+            'param2' => 2,
+            'paramBool' => true,
+            'paramNull' => null,
+        );
+        $request->setMethod('POST')
+            ->addPostParams($params)
+            ->addOptions(array(
+                CURLINFO_HEADER_OUT => 1,
+            ));
+        $data = json_decode($request->send(), true);
+        $requestHeaders = $request->getResponse()->getInfo(true)->request_header;
+        $this->assertContains('application/x-www-form-urlencoded', $requestHeaders);
+        $this->assertInternalType('array', $data, 'Invalid response');
+        $this->assertArrayHasKey('params', $data, 'Invalid response');
+        $this->assertEquals($params, $data['params'], 'One or more params missed or not equal');
+    }
+
+    /**
+     * test post request without any param
+     */
+    public function testEmptyPostRequest()
+    {
+        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $request->setMethod('POST')
+            ->addOptions(array(
+                CURLINFO_HEADER_OUT => 1,
+            ));
+        $data = json_decode($request->send(), true);
+        $this->assertInternalType('array', $data, 'Invalid response');
+        $requestHeaders = $request->getResponse()->getInfo(true)->request_header;
+        $this->assertContains('Content-Length: 0', $requestHeaders);
     }
 
     /**

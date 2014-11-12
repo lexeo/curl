@@ -24,7 +24,7 @@ class PlainResponse implements ResponseInterface
 
     /**
      * (non-PHPdoc)
-     * @see Curl\ResponseInterface::init($resource, $result)
+     * @see \Curl\ResponseInterface::init($resource, $result)
      */
     public function init($resource, $result)
     {
@@ -41,7 +41,7 @@ class PlainResponse implements ResponseInterface
 
     /**
      * (non-PHPdoc)
-     * @see Curl\ResponseInterface::getInfo()
+     * @see \Curl\ResponseInterface::getInfo()
      */
     public function getInfo($asObject = false)
     {
@@ -50,7 +50,7 @@ class PlainResponse implements ResponseInterface
 
     /**
      * (non-PHPdoc)
-     * @see Curl\ResponseInterface::hasError()
+     * @see \Curl\ResponseInterface::hasError()
      */
     public function hasError()
     {
@@ -60,7 +60,7 @@ class PlainResponse implements ResponseInterface
 
     /**
      * (non-PHPdoc)
-     * @see Curl\ResponseInterface::getError()
+     * @see \Curl\ResponseInterface::getError()
      */
     public function getError()
     {
@@ -69,7 +69,7 @@ class PlainResponse implements ResponseInterface
 
 	/**
      * (non-PHPdoc)
-     * @see Curl\ResponseInterface::getContent()
+     * @see \Curl\ResponseInterface::getContent()
      */
     public function getContent()
     {

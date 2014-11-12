@@ -29,6 +29,7 @@ class Request
     protected $cookies = array();
     protected $refererUrl;
     protected $userAgent;
+    protected $files = array();
 
     protected $proxy;
     protected $proxyPort;
@@ -51,100 +52,100 @@ class Request
     private $_ch = null;
 
     /**
-     * @var Curl\Response\ResponseInterface
+     * @var \Curl\Response\ResponseInterface
      */
     protected $response = null;
-    protected $responseClass = 'Curl\Response\PlainResponse';
+    protected $responseClass = '\Curl\Response\PlainResponse';
     protected $responseOptions = array();
 
-   /**
+    /**
     * Constructor
     * @param string $url
     * @param string $method [optional], default GET
     * @param array $postParams [optional]
     * @param callback $callback [optional]
-    * @return Curl\Request
+    * @return \Curl\Request
     */
-   public function __construct($url = null, $method = self::METHOD_GET, array $postParams = null, $callback = null)
-   {
+    public function __construct($url = null, $method = self::METHOD_GET, array $postParams = null, $callback = null)
+    {
        null !== $url && $this->setUrl($url);
        null !== $method && $this->setMethod($method);
        null !== $postParams && $this->setPostParams($postParams);
        null !== $callback && $this->setCallback($callback);
 
        $this->init();
-   }
+    }
 
-   /**
+    /**
     * Destructor
     */
-   public function __destruct()
-   {
+    public function __destruct()
+    {
         $this->close();
-   }
+    }
 
-   /**
+    /**
     * Initializes the request
     */
-   public function init()
-   {
+    public function init()
+    {
        $this->_ch = curl_init();
        $this->response = null;
        if(false === $this->getResource()) {
            throw new \RuntimeException('Function curl_init returned false. Failed to init the Request');
        }
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Makes new Request object
     * @param string $url
     * @param string $method [optional], default GET
     * @param array $postParams [optional]
     * @param callback $callback [optional]
-    * @return Curl\Request
+    * @return \Curl\Request
     */
-   public static function newRequest($url = null, $method = self::METHOD_GET, array $postParams = null, $callback = null)
-   {
+    public static function newRequest($url = null, $method = self::METHOD_GET, array $postParams = null, $callback = null)
+    {
        return new self($url, $method, $postParams, $callback);
-   }
+    }
 
-   /**
+    /**
     * Returns a list of available event types [key => description]
     * @return array
     */
-   public static function getAvailableEventTypes()
-   {
+    public static function getAvailableEventTypes()
+    {
        return array(
            self::EVENT_BEFORE_SEND => 'Before Send',
            self::EVENT_SUCCESS => 'Success. Response has no error',
            self::EVENT_ERROR => 'Error. Response has an error',
            self::EVENT_COMPLETE => 'Complete',
        );
-   }
+    }
 
-   /**
+    /**
     * Attaches an event handler
     * @param string $eventType
     * @param callback $handler valid callback
     */
-   public function on($eventType, $handler)
-   {
+    public function on($eventType, $handler)
+    {
        if(!is_callable($handler, true)) {
            throw new \InvalidArgumentException('Invalid event handler given. Expected a valid callback');
        }
        $this->observers[strtolower((string) $eventType)][] = $handler;
 
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Detaches an event handler
     * @param string $eventType
     * @param callback $handler
     */
-   public function off($eventType, $handler)
-   {
+    public function off($eventType, $handler)
+    {
        $k = strtolower((string) $eventType);
        if(isset($this->observers[$k])) {
            if(false !== ($index = array_search($handler, $this->observers[$k]))) {
@@ -155,15 +156,15 @@ class Request
            }
        }
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Fires event
     * @param string $eventType
     * @param array $customParams
     */
-   public function trigger($eventType, array $customParams = null)
-   {
+    public function trigger($eventType, array $customParams = null)
+    {
        $k = strtolower((string) $eventType);
        $observers = isset($this->observers[$k]) ? $this->observers[$k] : array();
        $params = array($this->response, $this);
@@ -175,15 +176,15 @@ class Request
            call_user_func_array($callback, $params);
        }
        return $this;
-   }
+    }
 
 
 
-   /**
+    /**
     * Prepares request (sets up the curl options)
     */
-   public function prepare()
-   {
+    public function prepare()
+    {
        if(empty($this->url)) {
            throw new \BadMethodCallException('Check the Request URL. It should not be empty.');
        }
@@ -227,7 +228,7 @@ class Request
         if(!empty($this->proxy)) {
             $options[CURLOPT_PROXY] = $this->proxy;
             $options[CURLOPT_PROXYPORT] = $this->proxyPort;
-            $options[CURLOPT_PROXYMETHOD] = $this->proxyType;
+            $options[CURLOPT_PROXYTYPE] = $this->proxyType;
             if(!empty($this->proxyUsrPwd)) {
                 $options[CURLOPT_PROXYAUTH] = true;
                 $options[CURLOPT_PROXYUSERPWD] = $this->proxyUserPwd;
@@ -236,24 +237,39 @@ class Request
 
         // remove request method options to avoid problems
         unset($options[CURLOPT_NOBODY], $options[CURLOPT_HTTPGET], $options[CURLOPT_CUSTOMREQUEST], $options[CURLOPT_POST]);
+        // add post files to post
+        $this->addPostParams($this->files);
         // set request data
-        if(!empty($this->postParams)) {
-            if(!in_array($this->method, array(self::METHOD_POST, self::METHOD_PUT))) {
-                $this->method = self::METHOD_POST;
-            }
-            $options[CURLOPT_POSTFIELDS] = $this->preparePostData($this->postParams);
-        } else if(self::METHOD_POST == $this->method) {
-            // FIXME check and remove this section if needed
-            // fix POST request with empty data issue (Content-Length: -1)
+        if(!empty($this->postParams) && !in_array($this->method, array(self::METHOD_POST, self::METHOD_PUT))) {
+            $this->method = self::METHOD_POST;
+        }
+        $forceMultipart = !empty($this->files);
+        if(in_array($this->method, array(self::METHOD_POST, self::METHOD_PUT))) {
+            $headerContentLength = false;
+            $headerContentType = false;
             foreach ($this->headers as $k => $h) {
-                if(false !== stripos($h, 'Content-Length')) {
-                    unset($this->headers[$k]);
-                } else if (false !== stripos($h, 'Content-type')) {
-                    unset($this->headers[$k]);
+                if (false !== stripos($h, 'Content-Type')) {
+                    if ($forceMultipart || false !== $headerContentType) {
+                        unset($this->headers[$k]);
+                        continue;
+                    }
+                    $headerContentType = $k;
+                } else if (false !== stripos($h, 'Content-Length')) {
+                    if ($forceMultipart || empty($this->postParams) || false !== $headerContentLength) {
+                        unset($this->headers[$k]);
+                        continue;
+                    }
+                    $headerContentLength = $k;
                 }
             }
-            $this->headers[] = 'Content-Type: multipart/form-data';
-            $this->headers[] = 'Content-Length: 0';
+            $forceMultipart && $this->headers[] = 'Content-Type: multipart/form-data';
+            // fix POST request with empty data issue (Content-Length: -1)
+            empty($this->postParams) && $this->headers[] = 'Content-Length: 0';
+
+            $ct = false !== $headerContentType ? $this->headers[$headerContentType] : '';
+            $options[CURLOPT_POSTFIELDS] = $forceMultipart || false !== stripos($ct, 'multipart')
+                ? $this->preparePostData($this->postParams)
+                : http_build_query($this->preparePostData($this->postParams, null, true));
         }
 
         // set curl request method
@@ -280,16 +296,17 @@ class Request
         curl_setopt_array($this->getResource(), $options);
 
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Prepares data to be able to send multidimensional array
     * @param array|object $data
     * @param string $prefix [optional]
+    * @param boolean $stringifyValues [optional, default=false]
     * @return array
     */
-   protected function preparePostData($data, $prefix = null)
-   {
+    protected function preparePostData($data, $prefix = null, $stringifyValues = false)
+    {
         $result = array();
         is_object($data) && null != ($props = get_object_vars($data)) && $data = $props;
         if (!is_array($data)) {
@@ -298,182 +315,200 @@ class Request
         foreach ($data as $k => $v) {
             $key = $prefix ? "{$prefix}[{$k}]" : $k;
             if (is_scalar($v) || null === $v) {
+                if ($stringifyValues) {
+                    if (true === $v) {
+                        $v = 'true';
+                    } else if (false === $v) {
+                        $v = 'false';
+                    } else if (null === $v) {
+                        $v = 'null';
+                    } else {
+                        $v = (string) $v;
+                    }
+                }
                 $result[$key] = $v;
             } else {
-                $result = array_merge($result, $this->preparePostData($v, $key));
+                $result = array_merge($result, $this->preparePostData($v, $key, $stringifyValues));
             }
         }
         return $result;
-   }
+    }
 
-   /**
+    /**
     * Closes connection
-    * @return Curl\Request
+    * @return \Curl\Request
     */
-   public function close()
-   {
+    public function close()
+    {
        if(is_resource($this->getResource())) {
            curl_close($this->getResource());
        }
        $this->_ch = null;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * @param string $url
     */
-   public function setUrl($url)
-   {
+    public function setUrl($url)
+    {
         $this->url = $url;
         return $this;
-   }
+    }
 
-   /**
+    /**
     * @return string
     */
-   public function getUrl()
-   {
+    public function getUrl()
+    {
        return $this->url;
-   }
+    }
 
-   /**
+    /**
     * @param string $method
     */
-   public function setMethod($method)
-   {
+    public function setMethod($method)
+    {
         $this->method = strtoupper($method);
         return $this;
-   }
+    }
 
-   /**
+    /**
     * @return string
     */
-   public function getMethod()
-   {
+    public function getMethod()
+    {
        return $this->method;
-   }
+    }
 
-   /**
+    /**
     * Defines POST params
     * @param array $params
     */
-   public function setPostParams(array $params)
-   {
+    public function setPostParams(array $params)
+    {
         $this->postParams = $params;
         return $this;
-   }
+    }
 
-   /**
+    /**
     * Appends POST params to request, overwrites duplicate keys
     * @param array $params
     */
-   public function addPostParams(array $params)
-   {
+    public function addPostParams(array $params)
+    {
         $this->postParams = $params + $this->postParams;
         return $this;
-   }
+    }
 
-   /**
+    /**
     * @return array
     */
-   public function getPostParams()
-   {
+    public function getPostParams()
+    {
        return $this->postParams;
-   }
+    }
 
-   /**
+    /**
     * Attaches files in POST data
     * @param array $files [key => file] or [key => [file1, file2, file3]]
     * @throws \InvalidArgumentException
     */
-   public function attachFiles(array $files)
-   {
+    public function attachFiles(array $files)
+    {
         $attachments = array();
         foreach ($files as $fieldname => $file) {
             if(is_array($file)) {
                 foreach($file as $k => $filename) {
-                    $pathToFile = $filename;
-                    if(is_file($filename) && false !== ($path = realpath($filename))) {
-                        $attachments["{$fieldname}[{$k}]"] = '@'. $pathToFile;
+                    if(is_file($filename) && is_readable($filename)) {
+                        $attachments["{$fieldname}[{$k}]"] = '@'. $filename;
                     } else {
                         trigger_error('Invalid filename: '. $filename, E_USER_NOTICE);
                     }
                 }
             } else if(is_string($file)) {
-                $pathToFile = $file;
-                if(is_file($file) && false !== ($path = realpath($file))) {
+                if(is_file($file) && is_readable($file)) {
                     $attachments[$fieldname] = '@'. $file;
                 } else {
                     trigger_error('Invalid filename: '. $file, E_USER_NOTICE);
                 }
             }
         }
-        $this->addPostParams($attachments);
+        $this->files = array_merge($this->files, $attachments);
         return $this;
-   }
+    }
 
-   /**
+    /**
+     * Returns the list of attached files [[key => filename], ...]
+     * @return array
+     */
+    public function getFiles()
+    {
+        return $this->files;
+    }
+
+    /**
     * Defines request headers
     * @param array $headers
     */
-   public function setHeaders(array $headers)
-   {
+    public function setHeaders(array $headers)
+    {
        $this->headers = $headers;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Appends headers to request, overwrites duplicate keys
     * @param array $headers
     */
-   public function addHeaders(array $headers)
-   {
+    public function addHeaders(array $headers)
+    {
        $this->headers = $headers + $this->headers;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * @return array
     */
-   public function getHeaders()
-   {
+    public function getHeaders()
+    {
        return $this->headers;
-   }
+    }
 
-   /**
+    /**
     * Defines cURL options array
     * @param array $options
     */
-   public function setOptions(array $options)
-   {
+    public function setOptions(array $options)
+    {
        $this->options = $options;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Appends certain cURL options, overwrite duplicate keys
     * @param array $options
     */
-   public function addOptions(array $options)
-   {
+    public function addOptions(array $options)
+    {
        $this->options = $options + $this->options;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * @return array
     */
-   public function getOptions()
-   {
+    public function getOptions()
+    {
        return $this->options;
-   }
+    }
 
-   /**
+    /**
     * @param string $pathToFile
     * @param boolean $write [optional]
     */
-   public function setCookieFile($pathToFile, $write = false)
-   {
+    public function setCookieFile($pathToFile, $write = false)
+    {
        if($write && !is_writable(($dir = dirname($pathToFile)))) {
            throw new \Exception('Check write permissions to directory: '. $dir);
        } else if(!$write && file_exists($pathToFile)) {
@@ -482,213 +517,227 @@ class Request
        $this->cookieFile = $pathToFile;
        $this->cookieFileReadOnly = !$write;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Define request cookies
     * @param array $cookies
     */
-   public function setCookies(array $cookies)
-   {
+    public function setCookies(array $cookies)
+    {
        $this->cookies = $cookies;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Appends certain request cookies, overwrite duplicate keys
     * @param array $cookies
     */
-   public function addCookies(array $cookies)
-   {
+    public function addCookies(array $cookies)
+    {
        $this->cookies = $cookies + $this->cookies;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * @return array
     */
-   public function getCookies()
-   {
+    public function getCookies()
+    {
        return $this->cookies;
-   }
+    }
 
-   /**
+    /**
     * Attaches the callback
     * @param object $callback
     * @throws Exception
     */
-   public function setCallback($callback)
-   {
+    public function setCallback($callback)
+    {
        $this->on(self::EVENT_COMPLETE, $callback);
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Sets up the request timeout in sec
     * @param integer $value
     */
-   public function setTimeout($value)
-   {
+    public function setTimeout($value)
+    {
        $this->timeout = (int) $value;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Sets up the request connection timeout in sec
     * @param integer $value
     */
-   public function setConnectionTimeout($value)
-   {
+    public function setConnectionTimeout($value)
+    {
        $this->connectionTimeout = (int) $value;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * If true, allow automatically redirect id needed
     * but only certain number of times
     * Note: it works only if php safe_mode is Off
     * @param boolean $flag
     * @param integer $limit [optional] 0 = unlimited
     */
-   public function setAllowRedirect($flag, $limit = null)
-   {
+    public function setAllowRedirect($flag, $limit = null)
+    {
        $this->allowRedirect = (boolean) $flag;
        if(null !== $limit) {
            $this->redirectLimit = max(0, (int) $limit);
        }
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Sets up request referer url
     * @param string $url
     */
-   public function setRefererUrl($url)
-   {
+    public function setRefererUrl($url)
+    {
        $this->refererUrl = $url;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Sets up request HTTP_USER_AGENT
     * @param string $ua default $_SERVER['HTTP_USER_AGENT']
     */
-   public function setUserAgent($ua = null)
-   {
+    public function setUserAgent($ua = null)
+    {
        if(!empty($ua)) {
            $this->userAgent = $ua;
        } else if(isset($_SERVER['HTTP_USER_AGENT'])) {
            $this->userAgent = $_SERVER['HTTP_USER_AGENT'];
        }
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Sets up proxy params
     * @param string $proxy
     * @param string $port [optional]
     * @param integer $type [optional] default CURLPROXY_HTTP
     */
-   public function setProxy($proxy, $port = null, $type = CURLPROXY_HTTP)
-   {
-       $this->proxy = $proxy;
-       $this->proxyPort = $port;
-       $this->proxyType = $type;
-       return $this;
-   }
+    public function setProxy($proxy, $port = null, $type = CURLPROXY_HTTP)
+    {
+        if (false !== ($p = strpos($proxy, ':')) && null !== $port) {
+            $proxy = substr($proxy, 0, $p);
+            $port = substr($proxy, $p + 1);
+        }
+        $this->proxy = trim((string) $proxy);
+        $this->proxyPort = trim((string) $port);
+        $this->proxyType = (int) $type;
+        return $this;
+    }
 
-   /**
+    /**
+     * Returns defined proxy
+     * @return string|null address:port
+     */
+    public function getProxy()
+    {
+        if (!$this->proxy) {
+            return null;
+        }
+        return $this->proxy . ($this->proxyPort ? ':' . $this->proxyPort : '');
+    }
+
+    /**
     * Sets up proxy owner credentials
     * @param string $user
     * @param string $password
     */
-   public function setProxyUserPwd($user, $password)
-   {
+    public function setProxyUserPwd($user, $password)
+    {
        $this->proxyUserPwd = $user .':'. $password;
        return $this;
-   }
+    }
 
-
-
-   /**
+    /**
     * Sets up the custom user data to be able to get it later
     * @param array $data
     */
-   public function setCustomData(array $data)
-   {
+    public function setCustomData(array $data)
+    {
        $this->customData = $data;
        return $this;
-   }
+    }
 
-   /**
+    /**
     * Returns defined custom data
     * @return array
     */
-   public function getCustomData()
-   {
+    public function getCustomData()
+    {
        return $this->customData;
-   }
+    }
 
-   /**
+    /**
     * Returns the curl resource
     */
-   public function getResource()
-   {
+    public function getResource()
+    {
        return $this->_ch;
-   }
+    }
 
-   /**
+    /**
     * Sends request
-    * @return Curl\Response\ResponseInterface
+    * @return \Curl\Response\ResponseInterface
     */
-   public function send()
-   {
+    public function send()
+    {
         $this->prepare();
         $this->trigger(self::EVENT_BEFORE_SEND);
         $result = curl_exec($this->getResource());
         $this->setResponse($result, true);
         return $this->getResponse();
-   }
+    }
 
-   /**
+    /**
     * Sets up the response type. Generates a notice if invalid type given
     * @param string $type
     */
-   public function setResponseType($type)
-   {
+    public function setResponseType($type)
+    {
         switch (strtolower(trim((string) $type))) {
             case 'json':
-                $this->setResponseClass('Curl\Response\JSONResponse');
+                $this->setResponseClass('\Curl\Response\JSONResponse');
                 break;
             case 'xml':
-                $this->setResponseClass('Curl\Response\XMLResponse');
+                $this->setResponseClass('\Curl\Response\XMLResponse');
                 break;
             case 'default':
             case 'text':
             case 'plain':
-                $this->setResponseClass('Curl\Response\PlainResponse');
+                $this->setResponseClass('\Curl\Response\PlainResponse');
                 break;
             default:
                 trigger_error('Unsupported response type "'. $type .'". Default type set.', E_USER_NOTICE);
-                $this->setResponseClass('Curl\Response\PlainResponse');
+                $this->setResponseClass('\Curl\Response\PlainResponse');
                 break;
         }
         return $this;
-   }
+    }
 
-   /**
+    /**
     * Defines response class
     * @param string $className
     */
     public function setResponseClass($className)
     {
         if(class_exists($className) && ($r = new \ReflectionClass($className))
-            && $r->implementsInterface('Curl\Response\ResponseInterface')
+            && $r->implementsInterface('\Curl\Response\ResponseInterface')
         ) {
             $this->responseClass = $className;
             return $this;
         }
-        throw new \InvalidArgumentException('Invalid class given. Response class must implement Curl\Response\ResponseInterface interface');
+        throw new \InvalidArgumentException('Invalid class given. Response class must implement \Curl\Response\ResponseInterface interface');
     }
 
     /**
@@ -700,23 +749,23 @@ class Request
         return $this->responseClass;
     }
 
-   /**
+    /**
     * Sets up the response options which will be defined after construct
     * @param array $options
     */
-   public function setResponseOptions(array $options)
-   {
+    public function setResponseOptions(array $options)
+    {
         $this->responseOptions = $options;
         return $this;
-   }
+    }
 
-   /**
+    /**
     * Sets up the response
     * @param string $result
     * @param boolean $autoClose
     */
-   public function setResponse($result, $autoClose = true)
-   {
+    public function setResponse($result, $autoClose = true)
+    {
         if(false === $result) {
             $result = '';
         }
@@ -743,17 +792,17 @@ class Request
            $this->close();
         }
         return $this;
-   }
+    }
 
-   /**
-    * @return Curl\Response\ResponseInterface
+    /**
+    * @return \Curl\Response\ResponseInterface
     */
-   public function getResponse()
-   {
+    public function getResponse()
+    {
        if(null === $this->response) {
            $this->send();
        }
        return $this->response;
-   }
+    }
 
 }
