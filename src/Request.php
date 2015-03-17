@@ -64,7 +64,7 @@ class Request
     * @param string $method [optional], default GET
     * @param array $postParams [optional]
     * @param callback $callback [optional]
-    * @return \Curl\Request
+    * @return self
     */
     public function __construct($url = null, $method = self::METHOD_GET, array $postParams = null, $callback = null)
     {
@@ -82,6 +82,16 @@ class Request
     public function __destruct()
     {
         $this->close();
+    }
+
+    /**
+     * Returns a new request with the same config
+     * @return self
+     */
+    public function __clone()
+    {
+        // reset response data and init new curl resource
+        return $this->close()->init();
     }
 
     /**
@@ -103,7 +113,7 @@ class Request
     * @param string $method [optional], default GET
     * @param array $postParams [optional]
     * @param callback $callback [optional]
-    * @return \Curl\Request
+    * @return self
     */
     public static function newRequest($url = null, $method = self::METHOD_GET, array $postParams = null, $callback = null)
     {
@@ -336,7 +346,7 @@ class Request
 
     /**
     * Closes connection
-    * @return \Curl\Request
+    * @return self
     */
     public function close()
     {
@@ -692,6 +702,9 @@ class Request
     */
     public function send()
     {
+        if (null !== $this->response) {
+            throw new \BadMethodCallException('Request already sent.');
+        }
         $this->prepare();
         $this->trigger(self::EVENT_BEFORE_SEND);
         $result = curl_exec($this->getResource());

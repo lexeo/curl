@@ -90,7 +90,7 @@ class XMLResponse extends PlainResponse
                 $childArray = self::xml2array($child, $ignoreAttributes);
                 if (count($childArray) == 1 && array_key_exists($name, $childArray)) {
                     $result[$name] = array_shift($childArray);
-                } else if ($childrenCount > count((array) $element) || $childrenCount == 1 && count($childArray) > 1) {
+                } else if ($childrenCount > count((array) $element)) {
                     $result[] = $childArray;
                 } else {
                     $result[$name] = $childArray;

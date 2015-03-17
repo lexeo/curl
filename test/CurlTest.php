@@ -447,4 +447,67 @@ class CurlTest extends \PHPUnit_Framework_TestCase
         $this->assertCount(5, $result['items']);
     }
 
+    /**
+     * Advanced test XML to array converting
+     */
+    public function textXMLResponseToArrayAdv()
+    {
+        $xml = '<?xml version="1.0" ?>
+            <root>
+                <item>
+                    <title>Item1</title>
+                </item>
+                <item>
+                    <title>Item2</title>
+                </item>
+            </root>';
+        $response = new Curl\Response\XMLResponse(null, $xml);
+        $result = $response->toArray();
+        $this->assertInternalType('array', $result);
+        $this->assertCount(2, $result);
+        $this->assertArrayHasKey('title', $result[0]);
+        $this->assertArrayHasKey('title', $result[1]);
+
+        $xml = '<?xml version="1.0" ?>
+            <root>
+                <item name="item1">
+                    <value>Item1</value>
+                </item>
+            </root>';
+        $response = new Curl\Response\XMLResponse(null, $xml);
+        $result = $response->toArray();
+        $this->assertInternalType('array', $result);
+        $this->assertCount(1, $result);
+        $this->assertArrayHasKey('item', $result);
+        $this->assertArrayHasKey('value', $result['item']);
+    }
+
+    /**
+     * test send a copy of request
+     */
+    public function testCloneRequest()
+    {
+        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $params = array(
+            'param1' => 1,
+            'param2' => 2,
+        );
+        $request->setMethod('POST')->addPostParams($params);
+        $result = json_decode($request->send(), true);
+        $this->assertInternalType('array', $result);
+        $this->assertArrayHasKey('param2', $result['params']);
+
+        $result = null;
+        try {
+            $result = $request->send();
+        } catch (\BadMethodCallException $e) {
+        }
+        $this->assertNull($result);
+
+        $request2 = clone $request;
+        $result = $result = json_decode($request2->send(), true);
+        $this->assertInternalType('array', $result);
+        $this->assertArrayHasKey('param2', $result['params']);
+    }
+
 }
