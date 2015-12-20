@@ -247,8 +247,18 @@ class Request
 
         // remove request method options to avoid problems
         unset($options[CURLOPT_NOBODY], $options[CURLOPT_HTTPGET], $options[CURLOPT_CUSTOMREQUEST], $options[CURLOPT_POST]);
-        // add post files to post
-        $this->addPostParams($this->files);
+
+        if (!empty($this->files)) {
+            $useCurlFile = version_compare(PHP_VERSION, '5.5', '>=');
+            $files = array();
+            array_walk($this->files, function($filename, $postname) use ($useCurlFile, &$files) {
+                $files[$postname] = $useCurlFile
+                    ? new \CURLFile($filename, mime_content_type($filename), $postname)
+                    : '@' . $filename;
+            });
+            // add post files to post
+            $this->addPostParams($files);
+        }
         // set request data
         if(!empty($this->postParams) && !in_array($this->method, array(self::METHOD_POST, self::METHOD_PUT))) {
             $this->method = self::METHOD_POST;
@@ -318,9 +328,8 @@ class Request
     protected function preparePostData($data, $prefix = null, $stringifyValues = false)
     {
         $result = array();
-        is_object($data) && null != ($props = get_object_vars($data)) && $data = $props;
-        if (!is_array($data)) {
-            throw new \InvalidArgumentException('Invalid argument $data given. Expected array or object.');
+        if (!is_array($data) && !$data instanceof \Traversable) {
+            throw new \InvalidArgumentException('Invalid argument $data given. Expected array or Traversable.');
         }
         foreach ($data as $k => $v) {
             $key = $prefix ? "{$prefix}[{$k}]" : $k;
@@ -336,6 +345,8 @@ class Request
                         $v = (string) $v;
                     }
                 }
+                $result[$key] = $v;
+            } elseif ($v instanceof \CURLFile) {
                 $result[$key] = $v;
             } else {
                 $result = array_merge($result, $this->preparePostData($v, $key, $stringifyValues));
@@ -431,14 +442,14 @@ class Request
             if(is_array($file)) {
                 foreach($file as $k => $filename) {
                     if(is_file($filename) && is_readable($filename)) {
-                        $attachments["{$fieldname}[{$k}]"] = '@'. $filename;
+                        $attachments["{$fieldname}[{$k}]"] = $filename;
                     } else {
                         trigger_error('Invalid filename: '. $filename, E_USER_NOTICE);
                     }
                 }
             } else if(is_string($file)) {
                 if(is_file($file) && is_readable($file)) {
-                    $attachments[$fieldname] = '@'. $file;
+                    $attachments[$fieldname] = $file;
                 } else {
                     trigger_error('Invalid filename: '. $file, E_USER_NOTICE);
                 }

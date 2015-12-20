@@ -117,7 +117,7 @@ class XMLResponse extends PlainResponse
         if (!$this->content instanceof \SimpleXMLElement && null != ($err = libxml_get_last_error())) {
             /* @var $err LibXMLError */
             $this->error = array(
-            	'code' => $err->code,
+                'code' => $err->code,
                 'message' => $err->message,
             );
         }

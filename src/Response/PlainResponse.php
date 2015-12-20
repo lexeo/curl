@@ -67,7 +67,7 @@ class PlainResponse implements ResponseInterface
         return $this->error;
     }
 
-	/**
+    /**
      * (non-PHPdoc)
      * @see \Curl\ResponseInterface::getContent()
      */

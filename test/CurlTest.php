@@ -2,14 +2,93 @@
 
 /**
  * @author Alexey "Lexeo" Grishatkin
- * @version 0.3.1
+ * @version 0.3.2
  */
 class CurlTest extends \PHPUnit_Framework_TestCase
 {
     /**
-     * @var string URL to serverside.php
+     * @var array List of created temporary files
      */
-    protected $testCallbackUrl = 'http://localhost/curl/test/serverside.php';
+    protected static $tmpFiles = array();
+    /**
+     * @var string host:port
+     */
+    protected static $webServerHost = '127.0.0.1:7777';
+    /**
+     * @var integer
+     */
+    protected static $webServerPid;
+
+    protected static $cookieFileName = 'testcookies.txt';
+
+    /**
+     * {@inheritdoc}
+     */
+    public static function setUpBeforeClass()
+    {
+        parent::setUpBeforeClass();
+        $dr = realpath(dirname(__FILE__));
+        $cmd = sprintf(
+            'php -S %s -t %s >/dev/null 2>&1 & echo $!',
+            escapeshellarg(self::$webServerHost),
+            escapeshellarg($dr)
+        );
+        $output = array();
+        exec($cmd, $output);
+        if (!isset($output[0]) || !is_numeric($output[0])) {
+            throw new \RuntimeException('Failed to run PHP built-in webserver.');
+        }
+        self::$webServerPid = (int) $output[0];
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public static function tearDownAfterClass()
+    {
+        parent::tearDownAfterClass();
+        $cmd = sprintf('kill %d', self::$webServerPid);
+        exec(escapeshellcmd($cmd));
+        self::$webServerPid = null;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function tearDown()
+    {
+        foreach (self::$tmpFiles as $filename) {
+            file_exists($filename) && unlink($filename);
+        }
+        self::$tmpFiles = array();
+
+        $filename = dirname(__FILE__) . DIRECTORY_SEPARATOR . self::$cookieFileName;
+        file_exists($filename) && unlink($filename);
+    }
+
+    /**
+     * Returns the URL to serverside.php script
+     * @return string
+     */
+    protected function getTestCallbackUrl()
+    {
+        return 'http://' . self::$webServerHost .'/serverside.php';
+    }
+
+    /**
+     * @throws \RuntimeException
+     * @return string filename
+     */
+    protected function createTmpFile()
+    {
+        $dir = sys_get_temp_dir();
+        $filename = $dir . DIRECTORY_SEPARATOR . uniqid('phpunit_') . '.txt';
+        if (!file_put_contents($filename, uniqid())) {
+            throw new \RuntimeException('Failed to create temporary file.');
+        }
+        return $filename;
+    }
+
 
     /**
      * test Init
@@ -82,7 +161,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
      */
     public function testRequestMethod($method)
     {
-        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->getTestCallbackUrl());
         $response = $request->setMethod($method)->send();
         if(Curl\Request::METHOD_HEAD == $method) {
             $this->assertEquals(200, $response->getInfo(true)->http_code);
@@ -94,7 +173,6 @@ class CurlTest extends \PHPUnit_Framework_TestCase
                 $this->assertEquals($method, $data['method']);
             }
         }
-
     }
 
     /**
@@ -102,14 +180,14 @@ class CurlTest extends \PHPUnit_Framework_TestCase
      */
     public function testPostRequestParamsAndFiles()
     {
-        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->getTestCallbackUrl());
         $params = array(
             'param1' => 1,
             'param2' => 2,
         );
         $files = array(
-            'file' => __FILE__,
-            'file2' => __FILE__,
+            'file' => $this->createTmpFile(),
+            'file2' => $this->createTmpFile(),
         );
         $request->setMethod('POST')
             ->addPostParams($params)
@@ -130,7 +208,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
      */
     public function testPostRequestMultidimensionalArray()
     {
-        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->getTestCallbackUrl());
         $params = array(
             'param1' => 1,
             'param2' => array(2, 'param3' => 3),
@@ -152,14 +230,14 @@ class CurlTest extends \PHPUnit_Framework_TestCase
      */
     public function testPutRequestParamsAndFiles()
     {
-        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->getTestCallbackUrl());
         $params = array(
             'param1' => 1,
             'param2' => 2,
         );
         $files = array(
-            'file' => __FILE__,
-            'file2' => __FILE__,
+            'file' => $this->createTmpFile(),
+            'file2' => $this->createTmpFile(),
         );
         $request->setMethod('PUT')
             ->addPostParams($params)
@@ -181,28 +259,29 @@ class CurlTest extends \PHPUnit_Framework_TestCase
      */
     public function testForceMultipartContent()
     {
-        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->getTestCallbackUrl());
         $params = array(
             'param1' => 1,
             'param2' => 2,
         );
         $files = array(
-            'file' => __FILE__,
-            'file2' => __FILE__,
+            'file' => $this->createTmpFile(),
+            'file2' => $this->createTmpFile(),
         );
         $invalidHeaders = array(
             'Content-Type: application/json',
-        	'Content-Length: 100500',
+            'Content-Length: 100500',
         );
         $request->setMethod('POST')
             ->addPostParams($params)
             ->attachFiles($files)
             ->addHeaders($invalidHeaders)
             ->addOptions(array(
-            	CURLINFO_HEADER_OUT => 1,
+                CURLINFO_HEADER_OUT => 1,
             ));
 
         $data = json_decode($request->send(), true);
+        $this->assertNotEmpty($request->getResponse()->getContent());
         $requestHeaders = $request->getResponse()->getInfo(true)->request_header;
         foreach ($invalidHeaders as $h) {
             $this->assertNotContains($h, $requestHeaders);
@@ -223,7 +302,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
      */
     public function testDefaultContentTypeIsUrlEncoded()
     {
-        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->getTestCallbackUrl());
         $params = array(
             'param1' => 1,
             'param2' => 2,
@@ -236,6 +315,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
                 CURLINFO_HEADER_OUT => 1,
             ));
         $data = json_decode($request->send(), true);
+        $this->assertNotEmpty($request->getResponse()->getContent());
         $requestHeaders = $request->getResponse()->getInfo(true)->request_header;
         $this->assertContains('application/x-www-form-urlencoded', $requestHeaders);
         $this->assertInternalType('array', $data, 'Invalid response');
@@ -248,12 +328,13 @@ class CurlTest extends \PHPUnit_Framework_TestCase
      */
     public function testEmptyPostRequest()
     {
-        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->getTestCallbackUrl());
         $request->setMethod('POST')
             ->addOptions(array(
                 CURLINFO_HEADER_OUT => 1,
             ));
         $data = json_decode($request->send(), true);
+        $this->assertNotEmpty($request->getResponse()->getContent());
         $this->assertInternalType('array', $data, 'Invalid response');
         $requestHeaders = $request->getResponse()->getInfo(true)->request_header;
         $this->assertContains('Content-Length: 0', $requestHeaders);
@@ -292,7 +373,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
     public function testRedirectLimit()
     {
         $limit = 2;
-        $request = Curl\Request::newRequest($this->testCallbackUrl .'?redirect=1');
+        $request = Curl\Request::newRequest($this->getTestCallbackUrl() .'?redirect=1');
         $response = $request->setAllowRedirect(true, $limit)->send();
         $this->assertLessThanOrEqual($limit, $response->getInfo(true)->redirect_count);
     }
@@ -303,10 +384,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
     public function testCookieFile()
     {
         // Note: the directory "test" must be writable
-        $filename = __DIR__ . DIRECTORY_SEPARATOR .'testcookies.txt';
-        if(file_exists($filename)) {
-            unlink($filename);
-        }
+        $filename = __DIR__ . DIRECTORY_SEPARATOR . self::$cookieFileName;
         $request = Curl\Request::newRequest('http://google.com');
         $request->setCookieFile($filename, true)->send();
         $this->assertFileExists($filename);
@@ -354,7 +432,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
     public function testJSONResponse()
     {
         /* @var $response Curl\Response\JSONResponse */
-        $response = Curl\Request::newRequest($this->testCallbackUrl)
+        $response = Curl\Request::newRequest($this->getTestCallbackUrl())
             ->setResponseClass('Curl\Response\JSONResponse')
             ->send();
         $this->assertInstanceOf('Curl\Response\JSONResponse', $response);
@@ -388,7 +466,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
     public function testXMLResponse()
     {
         /* @var $response Curl\Response\XMLResponse */
-        $response = Curl\Request::newRequest($this->testCallbackUrl .'?xml=1')
+        $response = Curl\Request::newRequest($this->getTestCallbackUrl() .'?xml=1')
             ->setResponseClass('Curl\Response\XMLResponse')
             ->send();
         $this->assertInstanceOf('Curl\Response\XMLResponse', $response);
@@ -487,7 +565,7 @@ class CurlTest extends \PHPUnit_Framework_TestCase
      */
     public function testCloneRequest()
     {
-        $request = Curl\Request::newRequest($this->testCallbackUrl);
+        $request = Curl\Request::newRequest($this->getTestCallbackUrl());
         $params = array(
             'param1' => 1,
             'param2' => 2,

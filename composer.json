@@ -1,15 +1,21 @@
 {
     "name": "lexeo/curl",
-    "description": "Simple PHP5.3 cURL wrapper",
+    "description": "Simple PHP5.3+ cURL wrapper",
     "keywords": ["curl", "php-curl", "http", "request"],
-    "version": "0.3.1",
-    "authors": [{
-        "name": "Alexey Grishatkin",
-        "email": "lexeodev@gmail.com"
-    }],
+    "version": "0.3.2",
+    "authors": [
+        {
+            "name": "Alexey Grishatkin",
+            "email": "lexeodev@gmail.com"
+        }
+    ],
     "require": {
         "php": ">=5.3.3",
         "ext-curl": "*"
+    },
+    "require-dev" : {
+        "php" : ">=5.4",
+        "phpunit/phpunit" : "4.*"
     },
     "autoload": {
         "psr-4": {
